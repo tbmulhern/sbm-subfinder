@@ -19,10 +19,7 @@ const fmt12 = t => { if (!t) return null; const [h, m] = t.split(":"); const hr 
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 const DAY_SHORT = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri" };
-const byLastName = arr => [...arr].sort((a, b) => {
-  const last = n => n?.trim().split(" ").pop().toLowerCase() || "";
-  return last(a.name).localeCompare(last(b.name));
-});
+
 
 const C = {
   green: "#3d6b4f", greenDark: "#2a4d38", greenLight: "#eaf2ec", greenMid: "#b8d4c0",
