@@ -83,7 +83,7 @@ export default function App() {
 
 function Header({ view, setView, onRefresh }) {
   return (
-    <div style={{ background: C.greenDark, marginBottom: 20 }}>
+    <div style={{ background: C.greenDark, marginBottom: 20, paddingTop: "env(safe-area-inset-top)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px" }}>
         {view !== VIEWS.HOME && <button onClick={() => setView(VIEWS.HOME)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 20, padding: "0 4px 0 0", flexShrink: 0 }}>←</button>}
         <button onClick={() => setView(VIEWS.HOME)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 1, minWidth: 0, textAlign: "left" }}>
