@@ -75,7 +75,7 @@ export default function App() {
         {view === VIEWS.SUB && <SubView subs={subs} requests={requests} subId={subId} setSubId={setSubId} onAccept={loadAll} selectedReq={selectedReq} setSelectedReq={setSelectedReq} />}
         {view === VIEWS.SCHEDULE && <ScheduleView teachers={teachers} subs={subs} />}
         {view === VIEWS.CALENDAR && <CalendarView requests={requests} />}
-        {view === VIEWS.ADMIN && <AdminView teachers={teachers} subs={subs} requests={requests} onRefresh={loadAll} />}
+        {view === VIEWS.ADMIN && <AdminGate teachers={teachers} subs={subs} requests={requests} onRefresh={loadAll} />}
       </div>
     </div>
   );
@@ -159,7 +159,7 @@ function ReqCard({ r, showStatus, clickable, onClick }) {
           <p style={{ margin: 0, fontWeight: "bold", fontSize: 15, color: C.text }}>{r.teacher_name}</p>
           <p style={{ margin: "2px 0 0", fontSize: 12, color: C.textMid }}>{r.classroom}</p>
           <p style={{ margin: "2px 0 0", fontSize: 12, color: C.textLight }}>{r.date} · {r.time}</p>
-          {r.break_time && <p style={{ margin: "2px 0 0", fontSize: 12, color: C.slate }}>Break: {r.break_time}</p>}
+          {r.break_time && <p style={{ margin: "2px 0 0", fontSize: 12, color: C.slate }}>🥪 Break: {r.break_time}</p>}
           {r.notes && <p style={{ margin: "4px 0 0", fontSize: 11, color: C.textLight, fontStyle: "italic" }}>{r.notes}</p>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, marginLeft: 8 }}>
@@ -244,7 +244,7 @@ function TeacherView({ teachers, subs, requests, onSubmit, setView }) {
 
   if (submitted) {
     const appUrl = window.location.href;
-    const msg = `Sub needed at Small But Mighty Preschool!\n\n👩‍🏫 ${submitted.teacher_name} is absent\n📚 ${submitted.classroom}\n📅 ${submitted.date} · ${submitted.time}${submitted.break_time ? `\n☕ Break: ${submitted.break_time}` : ""}${submitted.notes ? `\n📝 ${submitted.notes}` : ""}\n\nFirst sub to accept gets the spot!\nOpen the app: ${appUrl}`;
+    const msg = `Sub needed at Small But Mighty Preschool!\n\n👩‍🏫 ${submitted.teacher_name} is absent\n📚 ${submitted.classroom}\n📅 ${submitted.date} · ${submitted.time}${submitted.break_time ? `\n🥪 Break: ${submitted.break_time}` : ""}${submitted.notes ? `\n📝 ${submitted.notes}` : ""}\n\nFirst sub to accept gets the spot!\nOpen the app: ${appUrl}`;
     const notifyIds = submitted.notify_subs || notifySubIds;
     const notifiedSubs = subs.filter(s => notifyIds.includes(s.id));
     const phones = notifiedSubs.map(s => s.phone).filter(Boolean).join(",");
@@ -284,7 +284,7 @@ function TeacherView({ teachers, subs, requests, onSubmit, setView }) {
       </select>
       {teacherId && selectedTeacher?.break_time_start && (
         <div style={{ marginTop: 12, marginBottom: 12, padding: "8px 12px", background: C.slateLight, borderRadius: 8, border: `1px solid ${C.slate}33` }}>
-          <p style={{ margin: 0, fontSize: 12, color: C.slateDark }}>☕ Break time on file: <strong>{fmt12(selectedTeacher.break_time_start)} – {fmt12(selectedTeacher.break_time_end)}</strong> — will be included in the request.</p>
+          <p style={{ margin: 0, fontSize: 12, color: C.slateDark }}>🥪 Break time on file: <strong>{fmt12(selectedTeacher.break_time_start)} – {fmt12(selectedTeacher.break_time_end)}</strong> — will be included in the request.</p>
         </div>
       )}
       {teacherId && (
@@ -374,7 +374,7 @@ function SubView({ subs, requests, subId, setSubId, onAccept, selectedReq, setSe
           <p style={{ margin: "0 0 4px", fontWeight: "bold", fontSize: 17, color: C.text }}>{req.teacher_name}</p>
           <p style={{ margin: "0 0 2px", fontSize: 13, color: C.textMid }}>{req.classroom}</p>
           <p style={{ margin: "0 0 2px", fontSize: 13, color: C.textLight }}>{req.date} · {req.time}</p>
-          {req.break_time && <p style={{ margin: "2px 0 4px", fontSize: 13, color: C.slate }}>☕ Break: {req.break_time}</p>}
+          {req.break_time && <p style={{ margin: "2px 0 4px", fontSize: 13, color: C.slate }}>🥪 Break: {req.break_time}</p>}
           {req.notes && <p style={{ margin: "0 0 10px", fontSize: 12, color: C.textLight, fontStyle: "italic" }}>{req.notes}</p>}
           <StatusBadge r={req} />
         </div>
@@ -471,7 +471,7 @@ function ScheduleView({ teachers, subs }) {
               <p style={{ margin: "2px 0 0", fontSize: 12, color: C.textMid }}>{t.classroom}</p>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: C.textLight }}>
                 {fmt12(t[`${activeDay}_start`])} – {fmt12(t[`${activeDay}_end`])}
-                {t.break_time_start ? ` · ☕ ${fmt12(t.break_time_start)}–${fmt12(t.break_time_end)}` : ""}
+                {t.break_time_start ? ` · 🥪 ${fmt12(t.break_time_start)}–${fmt12(t.break_time_end)}` : ""}
               </p>
             </div>
           </div>
@@ -567,6 +567,44 @@ function Legend({ color, bg, label }) {
   return <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: bg, border: `1px solid ${color}` }} /><span style={{ fontSize: 11, color: C.textLight }}>{label}</span></div>;
 }
 
+const ADMIN_PIN_KEY = "sbm_admin_pin";
+const DEFAULT_PIN = "1234";
+
+function AdminGate({ teachers, subs, requests, onRefresh }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [entry, setEntry] = useState("");
+  const [error, setError] = useState(false);
+
+  const storedPin = () => localStorage.getItem(ADMIN_PIN_KEY) || DEFAULT_PIN;
+
+  const attempt = () => {
+    if (entry === storedPin()) { setUnlocked(true); setError(false); }
+    else { setError(true); setEntry(""); }
+  };
+
+  if (unlocked) return <AdminView teachers={teachers} subs={subs} requests={requests} onRefresh={onRefresh} onChangePinSuccess={() => {}} />;
+
+  return (
+    <div style={{ maxWidth: 280, margin: "40px auto", textAlign: "center" }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+      <p style={{ margin: "0 0 6px", fontWeight: "bold", fontSize: 17, color: C.text }}>Admin access</p>
+      <p style={{ margin: "0 0 20px", fontSize: 13, color: C.textLight }}>Enter your PIN to continue.</p>
+      <input
+        type="password"
+        inputMode="numeric"
+        maxLength={8}
+        value={entry}
+        onChange={e => { setEntry(e.target.value); setError(false); }}
+        onKeyDown={e => e.key === "Enter" && attempt()}
+        placeholder="PIN"
+        style={{ ...iS, textAlign: "center", fontSize: 22, letterSpacing: 8, marginBottom: 12 }}
+      />
+      {error && <p style={{ margin: "0 0 10px", fontSize: 13, color: C.red }}>Incorrect PIN. Try again.</p>}
+      <Btn onClick={attempt} variant="primary">Unlock</Btn>
+    </div>
+  );
+}
+
 function AdminView({ teachers, subs, requests, onRefresh }) {
   const [tab, setTab] = useState("requests");
   const [newT, setNewT] = useState(emptyT);
@@ -574,6 +612,11 @@ function AdminView({ teachers, subs, requests, onRefresh }) {
   const [saving, setSaving] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editingSub, setEditingSub] = useState(null);
+  const [changingPin, setChangingPin] = useState(false);
+  const [pinCurrent, setPinCurrent] = useState("");
+  const [pinNew, setPinNew] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [pinMsg, setPinMsg] = useState(null);
 
   const optInSubs = subs.filter(s => s.opt_in_sms !== false);
 
@@ -627,8 +670,8 @@ function AdminView({ teachers, subs, requests, onRefresh }) {
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-        {["requests", "teachers", "subs"].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "9px 4px", borderRadius: 8, border: `1px solid ${tab === t ? C.green : C.border}`, background: tab === t ? C.green : C.white, cursor: "pointer", fontSize: 12, fontWeight: "bold", color: tab === t ? C.white : C.textMid, textTransform: "capitalize", letterSpacing: 0.3 }}>{t}</button>
+        {["requests", "teachers", "subs", "pin"].map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "9px 4px", borderRadius: 8, border: `1px solid ${tab === t ? C.green : C.border}`, background: tab === t ? C.green : C.white, cursor: "pointer", fontSize: 12, fontWeight: "bold", color: tab === t ? C.white : C.textMid, textTransform: "capitalize", letterSpacing: 0.3 }}>{t === "pin" ? "🔒 PIN" : t}</button>
         ))}
       </div>
 
@@ -718,6 +761,28 @@ function AdminView({ teachers, subs, requests, onRefresh }) {
             </div>
             <Btn onClick={addSub} disabled={saving} variant="primary">Add substitute</Btn>
           </AddCard>
+        </div>
+      )}
+
+      {tab === "pin" && (
+        <div style={{ maxWidth: 300, margin: "0 auto" }}>
+          <p style={{ fontSize: 13, color: C.textMid, marginBottom: 20 }}>Change the PIN required to access the Admin section. The default PIN is <strong>1234</strong>.</p>
+          {pinMsg && <div style={{ padding: "10px 12px", borderRadius: 8, background: pinMsg.ok ? C.greenLight : C.redLight, border: `1px solid ${pinMsg.ok ? C.green : C.red}33`, marginBottom: 14 }}><p style={{ margin: 0, fontSize: 13, color: pinMsg.ok ? C.green : C.red }}>{pinMsg.text}</p></div>}
+          <Lbl>Current PIN</Lbl>
+          <input type="password" inputMode="numeric" maxLength={8} value={pinCurrent} onChange={e => setPinCurrent(e.target.value)} placeholder="Current PIN" style={{ ...iS, marginBottom: 12 }} />
+          <Lbl>New PIN</Lbl>
+          <input type="password" inputMode="numeric" maxLength={8} value={pinNew} onChange={e => setPinNew(e.target.value)} placeholder="New PIN (numbers only)" style={{ ...iS, marginBottom: 12 }} />
+          <Lbl>Confirm new PIN</Lbl>
+          <input type="password" inputMode="numeric" maxLength={8} value={pinConfirm} onChange={e => setPinConfirm(e.target.value)} placeholder="Confirm new PIN" style={{ ...iS, marginBottom: 20 }} />
+          <Btn variant="primary" onClick={() => {
+            const stored = localStorage.getItem(ADMIN_PIN_KEY) || DEFAULT_PIN;
+            if (pinCurrent !== stored) { setPinMsg({ ok: false, text: "Current PIN is incorrect." }); return; }
+            if (pinNew.length < 4) { setPinMsg({ ok: false, text: "New PIN must be at least 4 digits." }); return; }
+            if (pinNew !== pinConfirm) { setPinMsg({ ok: false, text: "New PINs don't match." }); return; }
+            localStorage.setItem(ADMIN_PIN_KEY, pinNew);
+            setPinCurrent(""); setPinNew(""); setPinConfirm("");
+            setPinMsg({ ok: true, text: "PIN updated successfully." });
+          }}>Update PIN</Btn>
         </div>
       )}
     </div>
