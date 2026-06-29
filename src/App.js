@@ -1,8 +1,10 @@
 /* eslint-disable no-restricted-globals */
 import { useState, useEffect, useCallback } from "react";
 
+const API_URL = process.env.REACT_APP_API_URL || "https://sbm-subfinder.netlify.app";
+
 async function sb(action, data = {}) {
-  const res = await fetch("/.netlify/functions/db", {
+  const res = await fetch(`${API_URL}/.netlify/functions/db`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, data }),
