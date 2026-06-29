@@ -71,7 +71,7 @@ export default function App() {
       <Header view={view} setView={setView} onRefresh={loadAll} />
       <div style={{ padding: "0 16px" }}>
         {view === VIEWS.HOME && <HomeView openReqs={openReqs} filledToday={filledToday} setView={setView} setSubId={setSubId} setSelectedReq={setSelectedReq} />}
-        {view === VIEWS.TEACHER && <TeacherView teachers={teachers} requests={requests} onSubmit={loadAll} setView={setView} />}
+        {view === VIEWS.TEACHER && <TeacherView teachers={teachers} subs={subs} requests={requests} onSubmit={loadAll} setView={setView} />}
         {view === VIEWS.SUB && <SubView subs={subs} requests={requests} subId={subId} setSubId={setSubId} onAccept={loadAll} selectedReq={selectedReq} setSelectedReq={setSelectedReq} />}
         {view === VIEWS.SCHEDULE && <ScheduleView teachers={teachers} subs={subs} />}
         {view === VIEWS.CALENDAR && <CalendarView requests={requests} />}
@@ -179,20 +179,44 @@ function EmptyState({ icon, msg }) {
   return <div style={{ textAlign: "center", padding: "40px 0" }}><p style={{ fontSize: 32, margin: "0 0 8px" }}>{icon}</p><p style={{ fontSize: 14, color: C.textLight }}>{msg}</p></div>;
 }
 
-function TeacherView({ teachers, requests, onSubmit, setView }) {
+function TeacherView({ teachers, subs, requests, onSubmit, setView }) {
   const [teacherId, setTeacherId] = useState("");
   const [date, setDate] = useState(today());
-  const [time, setTime] = useState("8:00 AM - 3:00 PM");
+  const [fullShift, setFullShift] = useState(true);
+  const [customTime, setCustomTime] = useState("");
+  const [reason, setReason] = useState("sickness");
+  const [reasonDetail, setReasonDetail] = useState("");
+  const [notifySubIds, setNotifySubIds] = useState([]);
   const [notes, setNotes] = useState("");
   const [submitted, setSubmitted] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const selectedTeacher = teachers.find(t => t.id === teacherId);
+  const weekday = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][new Date(date + "T12:00:00").getDay()];
+  const schedStart = selectedTeacher?.[`${weekday}_start`];
+  const schedEnd = selectedTeacher?.[`${weekday}_end`];
+  const scheduleStr = schedStart && schedEnd ? `${fmt12(schedStart)} – ${fmt12(schedEnd)}` : null;
+  const effectiveTime = fullShift ? (scheduleStr || "Full shift") : customTime;
+
   const monthlyFilled = teacherId ? requests.filter(r => r.teacher_id === teacherId && r.status === "filled" && r.date?.startsWith(thisMonth())).length : 0;
   const atLimit = monthlyFilled >= 5;
+  const dayCount = requests.filter(r => r.date === date).length;
+  const dayAtLimit = dayCount >= 3;
+
+  const toggleNotify = id => setNotifySubIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   const handleSubmit = async () => {
-    if (!teacherId || atLimit) return;
+    if (!teacherId || atLimit || dayAtLimit) return;
+    if (reason === "other" && !reasonDetail.trim()) { alert("Please describe the reason for the absence."); return; }
+    if (!fullShift && !customTime.trim()) { alert("Please enter the hours/times needed."); return; }
+    if (reason === "sickness") {
+      const sickDates = new Set(requests.filter(r => r.teacher_id === teacherId && r.reason === "sickness" && r.date?.startsWith(thisMonth())).map(r => r.date));
+      sickDates.add(date);
+      if (sickDates.size >= 3) {
+        const ok = window.confirm(`⚠️ ${selectedTeacher.name} has requested sick coverage for ${sickDates.size} days this month.\n\nA doctor's note is required for absences longer than 2 days. Continue?`);
+        if (!ok) return;
+      }
+    }
     setSaving(true);
     try {
       const breakTime = selectedTeacher.break_time_start && selectedTeacher.break_time_end
@@ -202,17 +226,29 @@ function TeacherView({ teachers, requests, onSubmit, setView }) {
         teacher_name: selectedTeacher.name,
         classroom: selectedTeacher.classroom,
         break_time: breakTime,
-        date, time, notes,
+        date,
+        time: effectiveTime,
+        notes,
+        reason,
+        reason_detail: reason === "other" ? reasonDetail : null,
+        notify_subs: notifySubIds,
       });
       await onSubmit();
       setSubmitted(req);
-    } catch (e) { alert("Error: " + e.message); }
-    finally { setSaving(false); }
+    } catch (e) {
+      alert(e.message === "limit reached"
+        ? "Limit reached — there are already 3 substitute requests for this day."
+        : "Error: " + e.message);
+    } finally { setSaving(false); }
   };
 
   if (submitted) {
     const appUrl = window.location.href;
     const msg = `Sub needed at Small But Mighty Preschool!\n\n👩‍🏫 ${submitted.teacher_name} is absent\n📚 ${submitted.classroom}\n📅 ${submitted.date} · ${submitted.time}${submitted.break_time ? `\n☕ Break: ${submitted.break_time}` : ""}${submitted.notes ? `\n📝 ${submitted.notes}` : ""}\n\nFirst sub to accept gets the spot!\nOpen the app: ${appUrl}`;
+    const notifyIds = submitted.notify_subs || notifySubIds;
+    const notifiedSubs = subs.filter(s => notifyIds.includes(s.id));
+    const phones = notifiedSubs.map(s => s.phone).filter(Boolean).join(",");
+    const smsHref = phones ? `sms:${phones}?&body=${encodeURIComponent(msg)}` : `sms:?&body=${encodeURIComponent(msg)}`;
     return (
       <div>
         <div style={{ background: C.greenLight, border: `1px solid ${C.greenMid}`, borderRadius: 12, padding: 20, marginBottom: 20, textAlign: "center" }}>
@@ -221,12 +257,17 @@ function TeacherView({ teachers, requests, onSubmit, setView }) {
           <p style={{ margin: "4px 0 0", fontSize: 13, color: C.green }}>Now notify your subs so they can accept.</p>
         </div>
         <ReqCard r={submitted} />
+        {notifiedSubs.length > 0 && (
+          <div style={{ margin: "12px 0", padding: "10px 12px", background: C.slateLight, borderRadius: 8, border: `1px solid ${C.slate}33` }}>
+            <p style={{ margin: 0, fontSize: 12, color: C.slateDark }}>Notifying: <strong>{notifiedSubs.map(s => s.name).join(", ")}</strong></p>
+          </div>
+        )}
         <div style={{ marginTop: 16, marginBottom: 8 }}><SectionLabel>Notify substitutes</SectionLabel></div>
         <a href={`https://wa.me/?text=${encodeURIComponent(msg)}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, background: "#25D366", borderRadius: 10, textDecoration: "none", marginBottom: 10 }}>
           <span style={{ fontSize: 20 }}>💬</span><span style={{ color: "#fff", fontWeight: "bold", fontSize: 14 }}>Send via WhatsApp</span>
         </a>
-        <a href={`sms:?&body=${encodeURIComponent(msg)}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, background: C.slateLight, border: `1px solid ${C.slate}44`, borderRadius: 10, textDecoration: "none", marginBottom: 20 }}>
-          <span style={{ fontSize: 20 }}>📱</span><span style={{ color: C.slateDark, fontWeight: "bold", fontSize: 14 }}>Send via SMS</span>
+        <a href={smsHref} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, background: C.slateLight, border: `1px solid ${C.slate}44`, borderRadius: 10, textDecoration: "none", marginBottom: 20 }}>
+          <span style={{ fontSize: 20 }}>📱</span><span style={{ color: C.slateDark, fontWeight: "bold", fontSize: 14 }}>Send via SMS{phones ? ` (${notifiedSubs.length})` : ""}</span>
         </a>
         <Btn onClick={() => setView(VIEWS.HOME)} variant="outline">Back to home</Btn>
       </div>
@@ -242,25 +283,63 @@ function TeacherView({ teachers, requests, onSubmit, setView }) {
         {teachers.map(t => <option key={t.id} value={t.id}>{t.name} — {t.classroom}</option>)}
       </select>
       {teacherId && selectedTeacher?.break_time_start && (
-        <div style={{ marginBottom: 12, padding: "8px 12px", background: C.slateLight, borderRadius: 8, border: `1px solid ${C.slate}33` }}>
+        <div style={{ marginTop: 12, marginBottom: 12, padding: "8px 12px", background: C.slateLight, borderRadius: 8, border: `1px solid ${C.slate}33` }}>
           <p style={{ margin: 0, fontSize: 12, color: C.slateDark }}>☕ Break time on file: <strong>{fmt12(selectedTeacher.break_time_start)} – {fmt12(selectedTeacher.break_time_end)}</strong> — will be included in the request.</p>
         </div>
       )}
       {teacherId && (
-        <div style={{ marginBottom: 16, padding: "10px 12px", background: atLimit ? C.redLight : C.greenLight, borderRadius: 8, border: `1px solid ${atLimit ? C.red : C.green}33` }}>
+        <div style={{ marginTop: 12, marginBottom: 16, padding: "10px 12px", background: atLimit ? C.redLight : C.greenLight, borderRadius: 8, border: `1px solid ${atLimit ? C.red : C.green}33` }}>
           <p style={{ margin: 0, fontSize: 13, color: atLimit ? C.red : C.green, fontWeight: "bold" }}>
             {atLimit ? "⚠️ You've reached your limit of 5 subs for the month." : `✓ ${monthlyFilled}/5 sub requests used this month`}
           </p>
         </div>
       )}
-      {!atLimit && <>
+      {teacherId && !atLimit && <>
         <Lbl>Date</Lbl>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...iS, marginBottom: 14 }} />
-        <Lbl>Hours needed</Lbl>
-        <input value={time} onChange={e => setTime(e.target.value)} placeholder="e.g. 8:00 AM - 3:00 PM" style={{ ...iS, marginBottom: 14 }} />
-        <Lbl>Notes (optional)</Lbl>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. lesson plan on desk, allergies to be aware of..." style={{ ...iS, height: 80, resize: "vertical", marginBottom: 20 }} />
-        <Btn onClick={handleSubmit} disabled={!teacherId || saving} variant="primary">{saving ? "Submitting..." : "Submit request"}</Btn>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...iS, marginBottom: 8 }} />
+        <div style={{ marginBottom: 14, padding: "8px 12px", background: dayAtLimit ? C.redLight : C.greenLight, borderRadius: 8, border: `1px solid ${dayAtLimit ? C.red : C.green}33` }}>
+          <p style={{ margin: 0, fontSize: 12, color: dayAtLimit ? C.red : C.green, fontWeight: "bold" }}>
+            {dayAtLimit ? "⚠️ Limit reached — 3 subs already requested for this day." : `${dayCount}/3 subs requested for this day`}
+          </p>
+        </div>
+        {!dayAtLimit && <>
+          <Lbl>Reason for absence</Lbl>
+          <select value={reason} onChange={e => setReason(e.target.value)} style={{ ...iS, marginBottom: reason === "other" ? 8 : 14 }}>
+            <option value="sickness">Sickness</option>
+            <option value="other">Other</option>
+          </select>
+          {reason === "other" && (
+            <input value={reasonDetail} onChange={e => setReasonDetail(e.target.value)} placeholder="Please specify the reason" style={{ ...iS, marginBottom: 14 }} />
+          )}
+          <Lbl>Hours needed</Lbl>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: fullShift ? 14 : 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={fullShift} onChange={e => setFullShift(e.target.checked)} style={{ width: 16, height: 16 }} />
+            <span style={{ fontSize: 14, color: C.text }}>Full shift{scheduleStr ? ` (${scheduleStr})` : ""}</span>
+          </label>
+          {!fullShift && (
+            <input value={customTime} onChange={e => setCustomTime(e.target.value)} placeholder="e.g. 8:00 AM - 12:00 PM, or 4 hours" style={{ ...iS, marginBottom: 14 }} />
+          )}
+          <Lbl>Notify specific subs (optional)</Lbl>
+          {subs.length === 0
+            ? <p style={{ margin: "0 0 14px", fontSize: 12, color: C.textLight }}>No substitutes on file yet.</p>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 6 }}>
+                {subs.map(s => {
+                  const on = notifySubIds.includes(s.id);
+                  return (
+                    <button key={s.id} onClick={() => toggleNotify(s.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, border: `1px solid ${on ? C.green : C.border}`, background: on ? C.greenLight : C.white, cursor: "pointer", textAlign: "left" }}>
+                      <span style={{ width: 18, height: 18, borderRadius: 4, border: `1px solid ${on ? C.green : C.border}`, background: on ? C.green : C.white, color: C.white, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{on ? "✓" : ""}</span>
+                      <span style={{ fontSize: 13, color: C.text, fontWeight: "bold" }}>{s.name}</span>
+                      <span style={{ fontSize: 11, color: C.textLight, marginLeft: "auto" }}>{s.phone}</span>
+                    </button>
+                  );
+                })}
+              </div>
+          }
+          <p style={{ margin: "0 0 14px", fontSize: 11, color: C.textLight }}>Leave all unchecked to notify everyone.</p>
+          <Lbl>Notes (optional)</Lbl>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. lesson plan on desk, allergies to be aware of..." style={{ ...iS, height: 80, resize: "vertical", marginBottom: 20 }} />
+          <Btn onClick={handleSubmit} disabled={!teacherId || saving} variant="primary">{saving ? "Submitting..." : "Submit request"}</Btn>
+        </>}
       </>}
     </div>
   );
