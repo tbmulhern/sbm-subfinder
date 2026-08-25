@@ -648,7 +648,6 @@ function AdminView({ teachers, subs, requests, onRefresh }) {
   const [saving, setSaving] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editingSub, setEditingSub] = useState(null);
-  const [changingPin, setChangingPin] = useState(false);
   const [pinCurrent, setPinCurrent] = useState("");
   const [pinNew, setPinNew] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
