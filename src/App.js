@@ -245,8 +245,8 @@ function TeacherView({ teachers, subs, requests, onSubmit, setView }) {
   };
 
   if (submitted) {
-    const appUrl = window.location.href;
-    const msg = `Sub needed at Small But Mighty Preschool!\n\n👩‍🏫 ${submitted.teacher_name} is absent\n📚 ${submitted.classroom}\n📅 ${submitted.date} · ${submitted.time}${submitted.break_time ? `\n🥪 Break: ${submitted.break_time}` : ""}${submitted.notes ? `\n📝 ${submitted.notes}` : ""}\n\nFirst sub to accept gets the spot!\nOpen the app: ${appUrl}`;
+    const appUrl = API_URL;
+    const msg = `Sub needed at Small But Mighty Preschool!\n\n👩‍🏫 ${submitted.teacher_name} is absent\n📚 ${submitted.classroom}\n📅 ${submitted.date} · ${submitted.time}${submitted.break_time ? `\n🥪 Break: ${submitted.break_time}` : ""}${submitted.notes ? `\n📝 ${submitted.notes}` : ""}\n\nFirst sub to accept gets the spot!\nView & accept: ${appUrl}`;
     const notifyIds = submitted.notify_subs || notifySubIds;
     const notifiedSubs = subs.filter(s => notifyIds.includes(s.id));
     const phones = notifiedSubs.map(s => s.phone).filter(Boolean).join(",");
@@ -452,6 +452,7 @@ function Avatar({ name, bg, color, size = 36 }) {
 
 function ScheduleView({ teachers, subs }) {
   const [activeDay, setActiveDay] = useState("monday");
+  const [scheduleTeacher, setScheduleTeacher] = useState(null);
   const teachersOnDay = teachers.filter(t => t[`${activeDay}_start`]);
   const subsOnDay = subs.filter(s => (s.available_days || []).includes(activeDay));
 
@@ -466,7 +467,7 @@ function ScheduleView({ teachers, subs }) {
       {teachersOnDay.length === 0
         ? <EmptyState icon="👩‍🏫" msg="No teachers scheduled this day" />
         : teachersOnDay.map(t => (
-          <div key={t.id} style={{ background: C.white, border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.gold}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+          <div key={t.id} onClick={() => setScheduleTeacher(t)} style={{ background: C.white, border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.gold}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
             <Avatar name={t.name} bg={C.goldLight} color={C.gold} />
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontWeight: "bold", fontSize: 14, color: C.text }}>{t.name}</p>
@@ -493,6 +494,39 @@ function ScheduleView({ teachers, subs }) {
           </div>
         ))
       }
+      {scheduleTeacher && <TeacherWeekPopup teacher={scheduleTeacher} onClose={() => setScheduleTeacher(null)} />}
+    </div>
+  );
+}
+
+function TeacherWeekPopup({ teacher, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 14, padding: "20px 18px", maxWidth: 340, width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <Avatar name={teacher.name} bg={C.goldLight} color={C.gold} />
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontWeight: "bold", fontSize: 15, color: C.text }}>{teacher.name}</p>
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: C.textMid }}>{teacher.classroom}</p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: C.textLight, cursor: "pointer", padding: 4 }}>×</button>
+        </div>
+        <SectionLabel>Weekly schedule</SectionLabel>
+        {DAYS.map(d => {
+          const start = teacher[`${d}_start`], end = teacher[`${d}_end`];
+          return (
+            <div key={d} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 13, fontWeight: "bold", color: C.text }}>{DAY_SHORT[d]}</span>
+              <span style={{ fontSize: 13, color: start ? C.textMid : C.textLight }}>
+                {start ? `${fmt12(start)} – ${fmt12(end)}` : "Off"}
+              </span>
+            </div>
+          );
+        })}
+        {teacher.break_time_start && (
+          <p style={{ margin: "12px 0 0", fontSize: 12, color: C.textLight }}>🥪 Break: {fmt12(teacher.break_time_start)} – {fmt12(teacher.break_time_end)}</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -652,7 +686,7 @@ function AdminView({ teachers, subs, requests, onRefresh }) {
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = filename; a.click();
   };
 
-  const groupMsg = `📢 Sub needed at Small But Mighty Preschool! Please open the app to view and accept open positions: ${window.location.href}`;
+  const groupMsg = `📢 Sub needed at Small But Mighty Preschool! View & accept: ${API_URL}`;
   const allPhones = optInSubs.map(s => s.phone).filter(Boolean).join(",");
   const smsGroupUrl = `sms:${allPhones}?&body=${encodeURIComponent(groupMsg)}`;
   const waGroupUrl = `https://wa.me/?text=${encodeURIComponent(groupMsg)}`;
@@ -892,5 +926,5 @@ function Lbl({ children }) {
   return <p style={{ margin: "0 0 5px", fontSize: 11, fontWeight: "bold", color: C.textLight, textTransform: "uppercase", letterSpacing: 0.8 }}>{children}</p>;
 }
 
-const iS = { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.text, fontSize: 14, fontFamily: F, boxSizing: "border-box", marginBottom: 0, outline: "none" };
+const iS = { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.text, fontSize: 16, fontFamily: F, boxSizing: "border-box", marginBottom: 0, outline: "none" };
 const dangerBtnStyle = { padding: "7px 14px", borderRadius: 8, border: `1px solid ${C.red}44`, background: C.redLight, cursor: "pointer", fontSize: 12, color: C.red, fontFamily: F };

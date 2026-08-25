@@ -37,10 +37,10 @@ exports.handler = async (event) => {
         result = await sql`SELECT * FROM substitutes ORDER BY name`;
         break;
       case "addSub":
-        result = await sql`INSERT INTO substitutes (name, phone, email, opt_in_sms, available_days) VALUES (${data.name}, ${data.phone}, ${data.email}, ${data.opt_in_sms}, ${JSON.stringify(data.available_days || [])}::jsonb) RETURNING *`;
+        result = await sql`INSERT INTO substitutes (name, phone, email, opt_in_sms, available_days) VALUES (${data.name}, ${data.phone}, ${data.email}, ${data.opt_in_sms}, ${data.available_days || []}) RETURNING *`;
         break;
       case "updateSub":
-        result = await sql`UPDATE substitutes SET name=${data.name}, phone=${data.phone}, email=${data.email}, opt_in_sms=${data.opt_in_sms}, available_days=${JSON.stringify(data.available_days || [])}::jsonb WHERE id=${data.id} RETURNING *`;
+        result = await sql`UPDATE substitutes SET name=${data.name}, phone=${data.phone}, email=${data.email}, opt_in_sms=${data.opt_in_sms}, available_days=${data.available_days || []} WHERE id=${data.id} RETURNING *`;
         break;
       case "deleteSub":
         result = await sql`DELETE FROM substitutes WHERE id=${data.id} RETURNING *`;
