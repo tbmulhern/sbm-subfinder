@@ -14,6 +14,9 @@ exports.handler = async (event) => {
 
   const { action, data } = JSON.parse(event.body || "{}");
 
+  // Postgres time/date columns reject "" — empty form fields must become NULL.
+  const t = v => (v === "" || v === undefined ? null : v);
+
   try {
     let result;
 
@@ -23,10 +26,10 @@ exports.handler = async (event) => {
         result = await sql`SELECT * FROM teachers ORDER BY name`;
         break;
       case "addTeacher":
-        result = await sql`INSERT INTO teachers (name, classroom, phone, email, break_time_start, break_time_end, monday_start, monday_end, tuesday_start, tuesday_end, wednesday_start, wednesday_end, thursday_start, thursday_end, friday_start, friday_end) VALUES (${data.name}, ${data.classroom}, ${data.phone}, ${data.email}, ${data.break_time_start}, ${data.break_time_end}, ${data.monday_start}, ${data.monday_end}, ${data.tuesday_start}, ${data.tuesday_end}, ${data.wednesday_start}, ${data.wednesday_end}, ${data.thursday_start}, ${data.thursday_end}, ${data.friday_start}, ${data.friday_end}) RETURNING *`;
+        result = await sql`INSERT INTO teachers (name, classroom, phone, email, break_time_start, break_time_end, monday_start, monday_end, tuesday_start, tuesday_end, wednesday_start, wednesday_end, thursday_start, thursday_end, friday_start, friday_end) VALUES (${data.name}, ${data.classroom}, ${data.phone}, ${data.email}, ${t(data.break_time_start)}, ${t(data.break_time_end)}, ${t(data.monday_start)}, ${t(data.monday_end)}, ${t(data.tuesday_start)}, ${t(data.tuesday_end)}, ${t(data.wednesday_start)}, ${t(data.wednesday_end)}, ${t(data.thursday_start)}, ${t(data.thursday_end)}, ${t(data.friday_start)}, ${t(data.friday_end)}) RETURNING *`;
         break;
       case "updateTeacher":
-        result = await sql`UPDATE teachers SET name=${data.name}, classroom=${data.classroom}, phone=${data.phone}, email=${data.email}, break_time_start=${data.break_time_start}, break_time_end=${data.break_time_end}, monday_start=${data.monday_start}, monday_end=${data.monday_end}, tuesday_start=${data.tuesday_start}, tuesday_end=${data.tuesday_end}, wednesday_start=${data.wednesday_start}, wednesday_end=${data.wednesday_end}, thursday_start=${data.thursday_start}, thursday_end=${data.thursday_end}, friday_start=${data.friday_start}, friday_end=${data.friday_end} WHERE id=${data.id} RETURNING *`;
+        result = await sql`UPDATE teachers SET name=${data.name}, classroom=${data.classroom}, phone=${data.phone}, email=${data.email}, break_time_start=${t(data.break_time_start)}, break_time_end=${t(data.break_time_end)}, monday_start=${t(data.monday_start)}, monday_end=${t(data.monday_end)}, tuesday_start=${t(data.tuesday_start)}, tuesday_end=${t(data.tuesday_end)}, wednesday_start=${t(data.wednesday_start)}, wednesday_end=${t(data.wednesday_end)}, thursday_start=${t(data.thursday_start)}, thursday_end=${t(data.thursday_end)}, friday_start=${t(data.friday_start)}, friday_end=${t(data.friday_end)} WHERE id=${data.id} RETURNING *`;
         break;
       case "deleteTeacher":
         result = await sql`DELETE FROM teachers WHERE id=${data.id} RETURNING *`;

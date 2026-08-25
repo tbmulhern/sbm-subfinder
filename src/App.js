@@ -76,7 +76,7 @@ export default function App() {
         {view === VIEWS.TEACHER && <TeacherView teachers={teachers} subs={subs} requests={requests} onSubmit={loadAll} setView={setView} />}
         {view === VIEWS.SUB && <SubView subs={subs} requests={requests} subId={subId} setSubId={setSubId} onAccept={loadAll} selectedReq={selectedReq} setSelectedReq={setSelectedReq} />}
         {view === VIEWS.SCHEDULE && <ScheduleView teachers={teachers} subs={subs} />}
-        {view === VIEWS.CALENDAR && <CalendarView requests={requests} />}
+        {view === VIEWS.CALENDAR && <CalendarView requests={requests} setView={setView} setSelectedReq={setSelectedReq} />}
         {view === VIEWS.ADMIN && <AdminGate teachers={teachers} subs={subs} requests={requests} onRefresh={loadAll} />}
       </div>
     </div>
@@ -531,7 +531,7 @@ function TeacherWeekPopup({ teacher, onClose }) {
   );
 }
 
-function CalendarView({ requests }) {
+function CalendarView({ requests, setView, setSelectedReq }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState(null);
   const now = new Date(); now.setMonth(now.getMonth() + monthOffset);
@@ -554,7 +554,7 @@ function CalendarView({ requests }) {
       <div>
         <button onClick={() => setSelectedDate(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.textMid, fontSize: 14, padding: "0 0 12px", display: "block" }}>← Back to calendar</button>
         <p style={{ margin: "0 0 14px", fontWeight: "bold", fontSize: 16, color: C.text }}>{label}</p>
-        {dayReqs.length === 0 ? <EmptyState icon="📅" msg="No requests on this day" /> : dayReqs.map(r => <ReqCard key={r.id} r={r} showStatus />)}
+        {dayReqs.length === 0 ? <EmptyState icon="📅" msg="No requests on this day" /> : dayReqs.map(r => <ReqCard key={r.id} r={r} showStatus clickable onClick={() => { setSelectedReq(r); setView(VIEWS.SUB); }} />)}
       </div>
     );
   }
